@@ -39,6 +39,15 @@ git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
 
 From the repo root:
 
-1. **Bootstrap once** (sets up vcpkg and configures the build):
-   ```powershell
-   & .\tools\setup.ps1
+```powershell
+# Bootstrap once (sets up vcpkg and configures the build) do not need to do this everytime
+& .\tools\setup.ps1
+
+# Build the project
+cmake --build --preset debug
+
+# Run the executable (path after build)
+out\build\vs2022-x64\Sandbox\Debug\MadusSandbox.exe
+
+# Or build and run in one step
+cmake --build --preset debug --target run
