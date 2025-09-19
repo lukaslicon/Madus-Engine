@@ -1,13 +1,32 @@
-Example output Image
-![alt text](image.png)
+# Madus-Engine
 
-Make sure you have glad and glfw3.4 intalled in vcpkg
+Tiny C++ game engine sandboxed for **2D/anime-style** rendering.  
+Current demo: opens a window and draws a triangle (GLFW + glad + OpenGL 3.3).
 
-install glad using vcpkg
-& $env:VCPKG_ROOT\vcpkg.exe install glad:x64-windows     
+![Example Output](image.png)
 
-install glfw using vcpkg
-& $env:VCPKG_ROOT\vcpkg.exe install glfw3:x64-windows  
+---
 
-run code through vcpkg using
-$env:VCPKG_ROOT="$env:USERPROFILE\vcpkg"; cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"; cmake --build build --config Debug -j; .\build\Sandbox\Debug\MadusSandbox.exe
+## Prerequisites (Windows)
+
+- **Visual Studio 2022** with **Desktop development with C++**
+- **CMake 3.20+**
+- **vcpkg** (any install location, e.g. `%USERPROFILE%\vcpkg`)
+- Use **Developer PowerShell for VS 2022** (so `cl.exe` is on PATH)
+
+> If you don’t have vcpkg:
+> ```powershell
+> git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+> & $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat
+> ```
+
+---
+
+## Dependencies (via vcpkg)
+
+```powershell
+$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
+& "$env:VCPKG_ROOT\vcpkg.exe" install glfw3:x64-windows
+& "$env:VCPKG_ROOT\vcpkg.exe" install glad:x64-windows
+# (Optional, for textures later)
+# & "$env:VCPKG_ROOT\vcpkg.exe" install stb:x64-windows
