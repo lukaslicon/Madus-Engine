@@ -1,0 +1,33 @@
+# CMake out-of-source builds
+/build/
+*/build/
+out/
+out/**
+
+# CMake files (if someone accidentally configures in-source)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# Visual Studio/VSCode
+.vs/
+*.vcxproj*
+*.sln
+*.user
+*.VC.db
+*.VC.VC.opendb
+.ipch/
+*.opendb
+
+# Package/install output
+/package/
+dist/
+install/
+*.zip
+*.7z
+
+# Crash/temps
+*.log
+*.tmp
