@@ -1,8 +1,10 @@
+
 #include "Madus/Engine.h"
 #include "Madus/App.h"
+#include <cstdio>
 
 // We can include glad here because Madus PUBLIC-links glad::glad
-#include <glad/gl.h>
+#include <glad/glad.h>
 
 #include <string>
 #include <vector>
@@ -18,7 +20,7 @@ static unsigned Compile(GLenum type, const char* src) {
         int len = 0; glGetShaderiv(s, GL_INFO_LOG_LENGTH, &len);
         std::string log(len, '\0');
         glGetShaderInfoLog(s, len, nullptr, log.data());
-        OutputDebugStringA(("Shader compile error:\n" + log + "\n").c_str());
+        std::fprintf(stderr, "Shader compile error:\n%s\n", log.c_str());
     }
     return s;
 }
@@ -33,7 +35,7 @@ static unsigned Link(unsigned vs, unsigned fs) {
         int len = 0; glGetProgramiv(p, GL_INFO_LOG_LENGTH, &len);
         std::string log(len, '\0');
         glGetProgramInfoLog(p, len, nullptr, log.data());
-        OutputDebugStringA(("Program link error:\n" + log + "\n").c_str());
+        std::fprintf(stderr, "Program link error:\n%s\n", log.c_str());
     }
     glDeleteShader(vs);
     glDeleteShader(fs);

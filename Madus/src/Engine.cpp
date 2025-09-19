@@ -1,7 +1,7 @@
 #include "Madus/Engine.h"
 #include "Madus/App.h"
 
-#include <glad/gl.h>
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include <chrono>

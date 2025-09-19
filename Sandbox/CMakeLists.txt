@@ -1,2 +1,6 @@
 add_executable(MadusSandbox src/main.cpp)
 target_link_libraries(MadusSandbox PRIVATE Madus)
+
+set_target_properties(MadusSandbox PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Sandbox")
+
