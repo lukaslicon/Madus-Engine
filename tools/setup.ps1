@@ -24,4 +24,4 @@ if (Test-Path $presetsPath) {
 }
 
 Write-Host "Ready. Build with:" -ForegroundColor Green
-Write-Host "  cmake --build build --config Debug --target run" -ForegroundColor Yellow
+Write-Host "  cmake --build --preset debug --target run" -ForegroundColor Yellow

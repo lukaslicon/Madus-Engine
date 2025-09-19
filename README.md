@@ -1,32 +1,44 @@
 # Madus-Engine
 
-Tiny C++ game engine sandboxed for **2D/anime-style** rendering.  
-Current demo: opens a window and draws a triangle (GLFW + glad + OpenGL 3.3).
+Madus-Engine is a **tiny C++ sandbox engine** built from scratch for learning and prototyping **2D/anime-style games**.  
+It uses **GLFW**, **glad**, and **OpenGL 3.3 Core**.  
+
+Current demo: opens a window and draws a soft purple triangle.
 
 ![Example Output](image.png)
 
 ---
 
-## Prerequisites (Windows)
+## Features (so far)
 
-- **Visual Studio 2022** with **Desktop development with C++**
-- **CMake 3.20+**
-- **vcpkg** (any install location, e.g. `%USERPROFILE%\vcpkg`)
-- Use **Developer PowerShell for VS 2022** (so `cl.exe` is on PATH)
-
-> If you don’t have vcpkg:
-> ```powershell
-> git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
-> & $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat
-> ```
+- 🔹 Minimal C++20 engine core (`Madus/`)  
+- 🔹 Cross-platform windowing + input via **GLFW**  
+- 🔹 OpenGL function loading via **glad**  
+- 🔹 Sandbox app (`Sandbox/`) with a custom `IApp` implementation  
+- 🔹 Clean out-of-source builds (`out/build/...`)  
+- 🔹 Preset-based CMake workflow (no manual paths)  
+- 🔹 PowerShell bootstrap script (`tools/setup.ps1`) for easy setup  
 
 ---
 
-## Dependencies (via vcpkg)
+## Prerequisites
 
+- **Visual Studio 2022** with *Desktop Development with C++* workload  
+- **CMake 3.20+**  
+- **vcpkg** (recommended in `%USERPROFILE%\vcpkg`)  
+- Run from **Developer PowerShell for VS 2022** (ensures `cl.exe` is on PATH)
+
+If you don’t have vcpkg yet:
 ```powershell
-$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
-& "$env:VCPKG_ROOT\vcpkg.exe" install glfw3:x64-windows
-& "$env:VCPKG_ROOT\vcpkg.exe" install glad:x64-windows
-# (Optional, for textures later)
-# & "$env:VCPKG_ROOT\vcpkg.exe" install stb:x64-windows
+git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+& $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat
+
+---
+
+## Quick Start
+
+From the repo root:
+
+1. **Bootstrap once** (sets up vcpkg and configures the build):
+   ```powershell
+   & .\tools\setup.ps1
