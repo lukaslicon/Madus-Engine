@@ -6,14 +6,17 @@
       "generator": "Visual Studio 17 2022",
       "architecture": { "value": "x64" },
       "binaryDir": "${sourceDir}/out/build/vs2022-x64",
+      "environment": {
+        "VCPKG_ROOT": "$env{USERPROFILE}/vcpkg"
+      },
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "CMAKE_CXX_STANDARD": "20"
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     }
   ],
   "buildPresets": [
-    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug"   },
+    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug" },
     { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" }
   ]
 }
