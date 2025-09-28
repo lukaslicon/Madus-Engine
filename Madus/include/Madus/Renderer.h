@@ -20,6 +20,18 @@ void Renderer_Resize(int w,int h);
 void Renderer_Begin(const FrameParams& fp);
 void Renderer_DrawMesh(const GpuMesh& mesh, ShaderHandle sh, const Mat4& model, unsigned albedoTex);
 void Renderer_End();
-
-// Built-in simple lit shader (create once and reuse)
 ShaderHandle Renderer_GetBasicLitShader();
+
+// --- Shadow map API ---
+struct ShadowMapInfo {
+    Mat4 LightView;
+    Mat4 LightProj;
+    int  Size = 2048;
+};
+
+void Renderer_Shadow_Init(int size = 2048);
+void Renderer_Shadow_Begin(const ShadowMapInfo& sm);
+void Renderer_Shadow_DrawDepth(const GpuMesh& mesh, const Mat4& model);
+void Renderer_Shadow_End();
+unsigned Renderer_Shadow_GetTexture();
+Mat4     Renderer_Shadow_GetLightVP();

@@ -44,6 +44,7 @@ int main(){
 
     Input_BindWindow(win);
     Renderer_Init(win);
+    Renderer_Shadow_Init(2048);
 
     int w=1920,h=1080;
     Renderer_Resize(w,h);
@@ -115,7 +116,30 @@ int main(){
         fp.Sun.dir[0] = -0.35f; fp.Sun.dir[1] = -0.9f; fp.Sun.dir[2] = -0.2f;
         fp.Sun.intensity = 3.0f;
 
+        // --- Build light matrices for the sun ---
+        Vec3 lightDir = { fp.Sun.dir[0], fp.Sun.dir[1], fp.Sun.dir[2] };
+        Vec3 center   = { 0, 0, 0 };        // focus area (you can track hero)
+        Vec3 lightPos = Add(center, Mul(lightDir, -30.0f)); // back along dir
+
+        Mat4 LView = LookAt(lightPos, center, {0,1,0});
+        // Fit your scene in this box. Adjust as needed.
+        Mat4 LProj = Ortho(-20, 20, -20, 20, 0.1f, 80.0f);
+
+        ShadowMapInfo sm{ LView, LProj, 2048 };
+        Renderer_Shadow_Begin(sm);
+
+        // draw the same geometry as depth-only
+        Renderer_Shadow_DrawDepth(plane, TRS({0,0,0}, AngleAxis(0,{0,1,0}), {1,1,1}));
+        for(int i=0;i<6;++i){
+            float x = -6.f + i*2.4f;
+            Mat4 M = TRS({x, 0.5f, -4.f}, AngleAxis(0,{0,1,0}), {1,1,1});
+            Renderer_Shadow_DrawDepth(box, M);
+        }
+        Renderer_Shadow_DrawDepth(box, TRS(hero.Position, AngleAxis(0,{0,1,0}), {1,1,1}));
+
+        Renderer_Shadow_End();
         Renderer_Begin(fp);
+        glUseProgram(sh);
 
         // Set common uniforms once for this shader
         glUseProgram(sh);
@@ -128,6 +152,28 @@ int main(){
         int locCam = GetUniformLocation(sh,"uCamPos");
         int locSky = GetUniformLocation(sh,"uSkyColor");
         int locGnd = GetUniformLocation(sh,"uGroundColor");
+        int locSh  = GetUniformLocation(sh,"uShadowMap");
+        int locLVP = GetUniformLocation(sh,"uLightVP");
+
+        // Shadow Light computations
+        Mat4 LightVP; // compute here
+        auto MulM = [](const Mat4& A, const Mat4& B){
+            Mat4 R{}; 
+            for(int c=0;c<4;++c)
+                for(int r=0;r<4;++r)
+                    R.m[c*4+r] = A.m[0*4+r]*B.m[c*4+0] + A.m[1*4+r]*B.m[c*4+1] + A.m[2*4+r]*B.m[c*4+2] + A.m[3*4+r]*B.m[c*4+3];
+            return R;
+        };
+        LightVP = MulM(LProj, LView);
+
+        glUniformMatrix4fv(locLVP, 1, GL_FALSE, LightVP.m);
+
+        // bind shadow map to texture unit 1 (albedo is 0)
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, Renderer_Shadow_GetTexture());
+        glUniform1i(locSh, 1);
+        glActiveTexture(GL_TEXTURE0); // back to albedo for draws
+
 
         // cam
         glUniform3f(locCam, cam.Pos.x, cam.Pos.y, cam.Pos.z);
