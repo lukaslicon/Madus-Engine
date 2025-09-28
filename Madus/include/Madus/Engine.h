@@ -1,6 +1,7 @@
-//Copyright Lukas Licon 2025
+// Copyright Lukas Licon 2025, All Rights Reservered.
 
 #pragma once
+
 #include <cstdint>
 
 struct GLFWwindow;
@@ -37,4 +38,4 @@ private:
     IApp* m_App = nullptr;
 };
 
-} // namespace madus
+}

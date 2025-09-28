@@ -1,6 +1,7 @@
-//Copyright Lukas Licon 2025
+// Copyright Lukas Licon 2025, All Rights Reservered.
 
 #pragma once
+
 namespace madus {
 class IApp {
 public:
@@ -10,4 +11,4 @@ public:
     virtual void OnUpdate(double) {}
     virtual void OnRender() {}
 };
-} // namespace madus
+} 

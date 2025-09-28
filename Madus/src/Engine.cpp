@@ -1,3 +1,5 @@
+// Copyright Lukas Licon 2025, All Rights Reservered.
+
 #include "Madus/Engine.h"
 #include "Madus/App.h"
 
