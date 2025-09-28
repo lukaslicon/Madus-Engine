@@ -16,3 +16,10 @@ struct InputState {
 void Input_BindWindow(void* glfwWindow);
 // Poll keys/mouse and fill InputState (call once/frame)
 void Input_Poll(InputState& out);
+
+// Used for capturing and reseting mouse
+void Input_ResetMouse();
+
+//active state of game from input
+void Input_SetActive(bool active);
+bool Input_IsActive();

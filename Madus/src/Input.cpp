@@ -6,6 +6,7 @@
 static GLFWwindow* GWin = nullptr;
 static double LastX = 0.0, LastY = 0.0;
 static bool   FirstMouse = true;
+static bool GActive = true;
 
 void Input_BindWindow(void* glfwWindow){
     GWin = (GLFWwindow*)glfwWindow;
@@ -14,6 +15,12 @@ void Input_BindWindow(void* glfwWindow){
 
 void Input_Poll(InputState& o){
     if (!GWin) return;
+
+    if (!GActive || glfwGetWindowAttrib(GWin, GLFW_FOCUSED) == GLFW_FALSE){
+        o = {};          
+        FirstMouse = true; 
+        return;
+    }
 
     // movement (WASD)
     o.MoveX = (glfwGetKey(GWin, GLFW_KEY_D)==GLFW_PRESS ? 1.f : 0.f)
@@ -32,4 +39,11 @@ void Input_Poll(InputState& o){
     o.MouseDX = float(x - LastX);
     o.MouseDY = float(y - LastY);
     LastX=x; LastY=y;
+
+    
+    
 }
+
+void Input_ResetMouse(){ FirstMouse = true; }
+void Input_SetActive(bool active){ GActive = active; }
+bool Input_IsActive(){ return GActive; }

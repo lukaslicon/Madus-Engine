@@ -25,6 +25,13 @@ int main(){
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
 
+    glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(win, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    }
+
+    bool gMouseCaptured = true;
+
     if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ std::cerr<<"glad failed\n"; return -1; }
 #ifndef NDEBUG
     // Only enable debug output if the function was loaded by glad
@@ -76,6 +83,21 @@ int main(){
         if (glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS){
             cam.Pos = Add(cam.Pos, Mul(cam.Forward(),  (in.MoveZ)*camMove));
             cam.Pos = Add(cam.Pos, Mul(cam.Right(),    (in.MoveX)*camMove));
+        }
+        // Press ESC to release the cursor
+        if (glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS && gMouseCaptured) {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            gMouseCaptured = false;
+            Input_SetActive(false);   // <- disable game input
+            Input_ResetMouse();
+        }       
+
+        // Press Left Mouse to recapture cursor
+        if (glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !gMouseCaptured) {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            gMouseCaptured = true;
+            Input_SetActive(true);    // <- enable game input
+            Input_ResetMouse();
         }
 
         // character tick (relative to camera forward/right)
