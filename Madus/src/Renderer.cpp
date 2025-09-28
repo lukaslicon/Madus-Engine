@@ -10,8 +10,11 @@ static const char* VS = R"(#version 330 core
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNrm;
 layout(location=2) in vec2 aUV;
+
 uniform mat4 uModel, uView, uProj;
+// NOTE: we still use mat3(uModel) — keep uniform scales for now
 out vec3 vNrm; out vec3 vWS; out vec2 vUV;
+
 void main(){
     vec4 ws = uModel * vec4(aPos,1.0);
     vWS = ws.xyz;
@@ -23,18 +26,36 @@ void main(){
 static const char* FS = R"(#version 330 core
 in vec3 vNrm; in vec3 vWS; in vec2 vUV;
 out vec4 FragColor;
+
 uniform sampler2D uAlbedo;
-uniform vec3 uSunDir;
+uniform vec3 uSunDir;        // light direction (toward light)
 uniform vec3 uSunColor;
 uniform float uSunIntensity;
+uniform vec3 uCamPos;        // NEW
+uniform vec3 uSkyColor;      // NEW (hemisphere top)
+uniform vec3 uGroundColor;   // NEW (hemisphere bottom)
+
 void main(){
     vec3 N = normalize(vNrm);
-    vec3 L = normalize(-uSunDir);
+    vec3 L = normalize(-uSunDir);          // from point to light
+    vec3 V = normalize(uCamPos - vWS);     // to camera
+    vec3 H = normalize(L + V);
+
     float ndl = max(dot(N,L), 0.0);
+    float ndh = max(dot(N,H), 0.0);
+    float spec = pow(ndh, 32.0);           // simple Blinn-Phong
+
+    // Hemisphere ambient
+    float up = N.y * 0.5 + 0.5;
+    vec3 hemi = mix(uGroundColor, uSkyColor, up);
+
     vec3 albedo = texture(uAlbedo, vUV).rgb;
-    vec3 color = albedo * (0.04 + uSunColor * uSunIntensity * ndl);
+    vec3 color = albedo * (hemi + uSunColor * (uSunIntensity * ndl))
+               + 0.08 * spec;              // subtle specular
+
     FragColor = vec4(color, 1.0);
 })";
+
 
 void Renderer_Init(void*){
     glEnable(GL_FRAMEBUFFER_SRGB);
@@ -42,6 +63,8 @@ void Renderer_Init(void*){
     glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+    glFrontFace(GL_CCW); 
+
     GBasicShader = CreateShaderProgram(VS,FS);
 }
 void Renderer_Shutdown(){

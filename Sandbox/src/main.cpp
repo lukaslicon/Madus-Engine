@@ -54,6 +54,7 @@ int main(){
 
     GpuMesh plane = CreatePlane(40.f);
     GpuMesh box   = CreateBoxUnit();
+    unsigned ground = CreateCheckerTexture(1024, 16, true);
     unsigned white = CreateTexture2DWhite();
 
     ShaderHandle sh = Renderer_GetBasicLitShader();
@@ -111,34 +112,53 @@ int main(){
         fp.View = cam.View();
         fp.Proj = cam.Proj((float)w/(float)h);
         fp.Sun  = DirectionalLight{};
+        fp.Sun.dir[0] = -0.35f; fp.Sun.dir[1] = -0.9f; fp.Sun.dir[2] = -0.2f;
+        fp.Sun.intensity = 3.0f;
+
         Renderer_Begin(fp);
 
         // Set common uniforms once for this shader
         glUseProgram(sh);
+
         int locV = GetUniformLocation(sh,"uView");
         int locP = GetUniformLocation(sh,"uProj");
         int locDir = GetUniformLocation(sh,"uSunDir");
         int locCol = GetUniformLocation(sh,"uSunColor");
         int locInt = GetUniformLocation(sh,"uSunIntensity");
+        int locCam = GetUniformLocation(sh,"uCamPos");
+        int locSky = GetUniformLocation(sh,"uSkyColor");
+        int locGnd = GetUniformLocation(sh,"uGroundColor");
+
+        // cam
+        glUniform3f(locCam, cam.Pos.x, cam.Pos.y, cam.Pos.z);
+        // sky bluish 
+        glUniform3f(locSky, 0.32f, 0.42f, 0.62f); // slightly dimmer sky
+        glUniform3f(locGnd, 0.10f, 0.09f, 0.09f); // darker ground ambient
+
         glUniformMatrix4fv(locV,1,GL_FALSE, fp.View.m);
         glUniformMatrix4fv(locP,1,GL_FALSE, fp.Proj.m);
+
+        //sun dir
         glUniform3f(locDir, fp.Sun.dir[0], fp.Sun.dir[1], fp.Sun.dir[2]);
+        //sun color
         glUniform3f(locCol, fp.Sun.color[0], fp.Sun.color[1], fp.Sun.color[2]);
+        //sun intensity (bright)
         glUniform1f(locInt, fp.Sun.intensity);
+
 
         // draw ground
         Mat4 Mground = TRS({0,0,0}, AngleAxis(0,{0,1,0}), {1,1,1});
-        Renderer_DrawMesh(plane, sh, Mground, white);
+        Renderer_DrawMesh(plane, sh, Mground, ground);
 
-        // draw a few platforms
+        // few testing boxes
         for(int i=0;i<6;++i){
             float x = -6.f + i*2.4f;
             Mat4 M = TRS({x, 0.5f, -4.f}, AngleAxis(0,{0,1,0}), {1,1,1});
             Renderer_DrawMesh(box, sh, M, white);
         }
 
-        // draw hero proxy (scaled box)
-        Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {0.8f,1.6f,0.8f});
+        // character hero (1x1x1 box for now)
+        Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {1.0f,1.0f,1.0f});
         Renderer_DrawMesh(box, sh, Mhero, white);
 
         Renderer_End();
@@ -147,6 +167,7 @@ int main(){
         in.ClearFrameDeltas();
     }
 
+    DestroyTexture(ground);
     DestroyTexture(white);
     DestroyMesh(box);
     DestroyMesh(plane);

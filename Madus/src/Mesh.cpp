@@ -22,29 +22,26 @@ static GpuMesh Upload(const std::vector<V>& vtx, const std::vector<uint32_t>& id
 }
 
 GpuMesh CreateBoxUnit(){
-    // cube of size 1; positions & normals baked; basic uvs
-    const float s=0.5f;
-    std::vector<V> v; v.reserve(24);
-    auto addFace=[&](float nx,float ny,float nz, float px, float py, float pz, float ux, float uy, float uz, float vx, float vy, float vz){
-        // quad as 4 verts
-        V a{{px-ux-vx, py-uy-vy, pz-uz-vz}, {nx,ny,nz}, {0,0}};
-        V b{{px+ux-vx, py+uy-vy, pz+uz-vz}, {nx,ny,nz}, {1,0}};
-        V c{{px+ux+vx, py+uy+vy, pz+uz+vz}, {nx,ny,nz}, {1,1}};
-        V d{{px-ux+vx, py-uy+vy, pz-uz+vz}, {nx,ny,nz}, {0,1}};
-        v.push_back(a); v.push_back(b); v.push_back(c); v.push_back(d);
+    const float s = 0.5f;
+    std::vector<V> v = {
+        // +X (right)
+        {{ s,-s,-s},{ 1,0,0},{0,0}}, {{ s, s,-s},{ 1,0,0},{0,1}}, {{ s, s, s},{ 1,0,0},{1,1}}, {{ s,-s, s},{ 1,0,0},{1,0}},
+        // -X (left)
+        {{-s,-s, s},{-1,0,0},{0,0}}, {{-s, s, s},{-1,0,0},{0,1}}, {{-s, s,-s},{-1,0,0},{1,1}}, {{-s,-s,-s},{-1,0,0},{1,0}},
+        // +Y (top)
+        {{-s, s,-s},{0, 1,0},{0,0}}, {{-s, s, s},{0, 1,0},{0,1}}, {{ s, s, s},{0, 1,0},{1,1}}, {{ s, s,-s},{0, 1,0},{1,0}},
+        // -Y (bottom)
+        {{-s,-s, s},{0,-1,0},{0,0}}, {{-s,-s,-s},{0,-1,0},{0,1}}, {{ s,-s,-s},{0,-1,0},{1,1}}, {{ s,-s, s},{0,-1,0},{1,0}},
+        // +Z (front)
+        {{-s,-s, s},{0,0, 1},{0,0}}, {{ s,-s, s},{0,0, 1},{1,0}}, {{ s, s, s},{0,0, 1},{1,1}}, {{-s, s, s},{0,0, 1},{0,1}},
+        // -Z (back)
+        {{ s,-s,-s},{0,0,-1},{0,0}}, {{-s,-s,-s},{0,0,-1},{1,0}}, {{-s, s,-s},{0,0,-1},{1,1}}, {{ s, s,-s},{0,0,-1},{0,1}},
     };
-    // +X, -X, +Y, -Y, +Z, -Z
-    addFace( 1,0,0,  s,0,0,  0, s,0,  0,0, s);
-    addFace(-1,0,0, -s,0,0,  0, s,0,  0,0,-s);
-    addFace(0, 1,0,  0, s,0,  s,0,0,  0,0, s);
-    addFace(0,-1,0,  0,-s,0,  s,0,0,  0,0,-s);
-    addFace(0,0, 1,  0,0, s,  s,0,0,  0, s,0);
-    addFace(0,0,-1,  0,0,-s, s,0,0,  0,-s,0);
-
     std::vector<uint32_t> idx; idx.reserve(36);
-    for(uint32_t i=0;i<24;i+=4){ idx.insert(idx.end(), {i,i+1,i+2, i,i+2,i+3}); }
+    for(uint32_t i=0;i<24;i+=4) idx.insert(idx.end(), {i, i+1, i+2,  i, i+2, i+3}); // CCW
     return Upload(v, idx);
 }
+
 GpuMesh CreatePlane(float size){
     float s=size*0.5f;
     std::vector<V> v = {
@@ -53,9 +50,11 @@ GpuMesh CreatePlane(float size){
         {{ s,0, s},{0,1,0},{1,1}},
         {{-s,0, s},{0,1,0},{0,1}},
     };
-    std::vector<uint32_t> i = {0,1,2, 0,2,3};
+    std::vector<uint32_t> i = {0,2,1, 0,3,2};
     return Upload(v,i);
 }
+
+
 void DestroyMesh(GpuMesh& m){
     if(m.ibo) glDeleteBuffers(1,&m.ibo);
     if(m.vbo) glDeleteBuffers(1,&m.vbo);
