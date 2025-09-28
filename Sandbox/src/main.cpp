@@ -1,112 +1,135 @@
+// Copyright Lukas Licon 2025, All Rights Reservered.
 
-#include "Madus/Engine.h"
-#include "Madus/App.h"
-#include <cstdio>
-
-// We can include glad here because Madus PUBLIC-links glad::glad
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include "Madus/Math.h"
+#include "Madus/Camera.h"
+#include "Madus/Input.h"
+#include "Madus/Mesh.h"
+#include "Madus/Texture.h"
+#include "Madus/Renderer.h"
+#include "Madus/CharacterController.h"
 
-#include <string>
-#include <vector>
-
-using namespace madus;
-
-static unsigned Compile(GLenum type, const char* src) {
-    unsigned s = glCreateShader(type);
-    glShaderSource(s, 1, &src, nullptr);
-    glCompileShader(s);
-    int ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        int len = 0; glGetShaderiv(s, GL_INFO_LOG_LENGTH, &len);
-        std::string log(len, '\0');
-        glGetShaderInfoLog(s, len, nullptr, log.data());
-        std::fprintf(stderr, "Shader compile error:\n%s\n", log.c_str());
-    }
-    return s;
+static void GLAPIENTRY glDbg(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar* msg, const void*) {
+    std::cerr << "[GL] " << msg << "\n";
 }
 
-static unsigned Link(unsigned vs, unsigned fs) {
-    unsigned p = glCreateProgram();
-    glAttachShader(p, vs);
-    glAttachShader(p, fs);
-    glLinkProgram(p);
-    int ok = 0; glGetProgramiv(p, GL_LINK_STATUS, &ok);
-    if (!ok) {
-        int len = 0; glGetProgramiv(p, GL_INFO_LOG_LENGTH, &len);
-        std::string log(len, '\0');
-        glGetProgramInfoLog(p, len, nullptr, log.data());
-        std::fprintf(stderr, "Program link error:\n%s\n", log.c_str());
+int main(){
+    if(!glfwInit()){ std::cerr<<"GLFW init failed\n"; return -1; }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow* win = glfwCreateWindow(1920,1080,"Madus Sandbox",nullptr,nullptr);
+    if(!win){ glfwTerminate(); return -1; }
+    glfwMakeContextCurrent(win);
+    glfwSwapInterval(1);
+
+    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ std::cerr<<"glad failed\n"; return -1; }
+#ifndef NDEBUG
+    // Only enable debug output if the function was loaded by glad
+    if (glDebugMessageCallback) {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(glDbg, nullptr);
     }
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-    return p;
-}
+#endif
 
-class TriangleApp : public IApp {
-public:
-    void OnStartup() override {
-        // Triangle vertices (x, y). NDC coordinates.
-        float verts[] = {
-            -0.5f, -0.5f,
-             0.5f, -0.5f,
-             0.0f,  0.5f
-        };
+    Input_BindWindow(win);
+    Renderer_Init(win);
 
-        glGenVertexArrays(1, &mVAO);
-        glGenBuffers(1, &mVBO);
-        glBindVertexArray(mVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, mVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+    int w=1920,h=1080;
+    Renderer_Resize(w,h);
 
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    // Scene bits
+    Camera cam;
+    cam.Pos = {0, 2.0f, 8.0f};
 
-        const char* vsSrc = R"(#version 330 core
-            layout(location=0) in vec2 aPos;
-            void main() {
-                gl_Position = vec4(aPos, 0.0, 1.0);
-            })";
+    GpuMesh plane = CreatePlane(40.f);
+    GpuMesh box   = CreateBoxUnit();
+    unsigned white = CreateTexture2DWhite();
 
-        const char* fsSrc = R"(#version 330 core
-            out vec4 FragColor;
-            void main() {
-                // soft anime-ish purple
-                FragColor = vec4(0.82, 0.72, 0.96, 1.0);
-            })";
+    ShaderHandle sh = Renderer_GetBasicLitShader();
 
-        unsigned vs = Compile(GL_VERTEX_SHADER,   vsSrc);
-        unsigned fs = Compile(GL_FRAGMENT_SHADER, fsSrc);
-        mProg = Link(vs, fs);
+    CharacterController hero{};
+    hero.Position = {0, 0, 0};
 
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    double lastTime = glfwGetTime();
+
+    while(!glfwWindowShouldClose(win)){
+        glfwPollEvents();
+
+        int fbw, fbh; glfwGetFramebufferSize(win, &fbw, &fbh);
+        if (fbw!=w || fbh!=h){ w=fbw; h=fbh; Renderer_Resize(w,h); }
+
+        double now = glfwGetTime();
+        float dt = float(now - lastTime);
+        lastTime = now;
+
+        InputState in{}; Input_Poll(in);
+
+        // mouse look (adjust sensitivity)
+        cam.AddYawPitch(-in.MouseDX * 0.0025f, -in.MouseDY * 0.0020f);
+
+        // WASD
+        const float camMove = 7.0f * dt;
+        if (glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS){
+            cam.Pos = Add(cam.Pos, Mul(cam.Forward(),  (in.MoveZ)*camMove));
+            cam.Pos = Add(cam.Pos, Mul(cam.Right(),    (in.MoveX)*camMove));
+        }
+
+        // character tick (relative to camera forward/right)
+        hero.Tick(in, dt, cam.Forward(), cam.Right());
+
+        // simple third-person follow (offset behind and above hero)
+        Vec3 follow = Add(hero.Position, Add(Mul(cam.Forward(), -6.f), Vec3{0,3.0f,0}));
+        cam.Pos = follow;
+
+        FrameParams fp{};
+        fp.View = cam.View();
+        fp.Proj = cam.Proj((float)w/(float)h);
+        fp.Sun  = DirectionalLight{};
+        Renderer_Begin(fp);
+
+        // Set common uniforms once for this shader
+        glUseProgram(sh);
+        int locV = GetUniformLocation(sh,"uView");
+        int locP = GetUniformLocation(sh,"uProj");
+        int locDir = GetUniformLocation(sh,"uSunDir");
+        int locCol = GetUniformLocation(sh,"uSunColor");
+        int locInt = GetUniformLocation(sh,"uSunIntensity");
+        glUniformMatrix4fv(locV,1,GL_FALSE, fp.View.m);
+        glUniformMatrix4fv(locP,1,GL_FALSE, fp.Proj.m);
+        glUniform3f(locDir, fp.Sun.dir[0], fp.Sun.dir[1], fp.Sun.dir[2]);
+        glUniform3f(locCol, fp.Sun.color[0], fp.Sun.color[1], fp.Sun.color[2]);
+        glUniform1f(locInt, fp.Sun.intensity);
+
+        // draw ground
+        Mat4 Mground = TRS({0,0,0}, AngleAxis(0,{0,1,0}), {1,1,1});
+        Renderer_DrawMesh(plane, sh, Mground, white);
+
+        // draw a few platforms
+        for(int i=0;i<6;++i){
+            float x = -6.f + i*2.4f;
+            Mat4 M = TRS({x, 0.5f, -4.f}, AngleAxis(0,{0,1,0}), {1,1,1});
+            Renderer_DrawMesh(box, sh, M, white);
+        }
+
+        // draw hero proxy (scaled box)
+        Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {0.8f,1.6f,0.8f});
+        Renderer_DrawMesh(box, sh, Mhero, white);
+
+        Renderer_End();
+        glfwSwapBuffers(win);
+
+        in.ClearFrameDeltas();
     }
 
-    void OnRender() override {
-        glUseProgram(mProg);
-        glBindVertexArray(mVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        glBindVertexArray(0);
-    }
-
-    void OnShutdown() override {
-        if (mProg) glDeleteProgram(mProg);
-        if (mVBO)  glDeleteBuffers(1, &mVBO);
-        if (mVAO)  glDeleteVertexArrays(1, &mVAO);
-    }
-
-private:
-    unsigned mVAO = 0, mVBO = 0, mProg = 0;
-};
-
-int main() {
-    EngineConfig cfg;
-    cfg.title  = "Madus Sandbox — Triangle";
-    cfg.width  = 1280;
-    cfg.height = 720;
-    cfg.vsync  = true;
-
-    TriangleApp app;
-    Engine engine(cfg, &app);
-    return engine.Run();
+    DestroyTexture(white);
+    DestroyMesh(box);
+    DestroyMesh(plane);
+    Renderer_Shutdown();
+    glfwDestroyWindow(win);
+    glfwTerminate();
+    return 0;
 }
