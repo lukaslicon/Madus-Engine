@@ -77,8 +77,7 @@ int main(){
 
     const float baseYawDeg   = 45.f;    // face down world diagonal
     const float basePitchDeg = -35.f;   // tilt downward
-
-    cam.Type  = ProjectionType::Perspective;
+    
     cam.FovY  = DegToRad(65.f);
     cam.Pos   = {0, 8, 12}; // gets snapped below anyway
 
@@ -140,6 +139,28 @@ int main(){
         if (Input_IsActive()) {
             hero.Tick(in, dt, cam.Forward(), cam.Right());
         }
+
+        static float hudAccum = 0.f;
+        hudAccum += dt;
+        if (hudAccum > 0.10f) {
+            hudAccum = 0.f;
+            const char* stateStr = "Idle";
+            switch (hero.State) {
+                case EPlayerState::Idle: stateStr = "Idle"; break;
+                case EPlayerState::Move: stateStr = "Move"; break;
+                case EPlayerState::Jump: stateStr = "Jump"; break;
+                case EPlayerState::Fall: stateStr = "Fall"; break;
+                case EPlayerState::Dash: stateStr = "Dash"; break;
+            }
+            char title[256];
+            std::snprintf(title, sizeof(title),
+                "Madus Sandbox | spd=%.2f m/s  acc=%.1f m/s^2  state=%s  dashT=%.2f cd=%.2f  invul=%s  grounded=%s",
+                hero.LastSpeed, hero.AccelMag, stateStr, hero.DashTimer, hero.DashCDTimer,
+                hero.Invulnerable ? "Y" : "N",
+                hero.Grounded ? "Y" : "N");
+            glfwSetWindowTitle(win, title);
+        }
+
         const float baseYaw   = DegToRad(baseYawDeg);
         const float basePitch = DegToRad(basePitchDeg);
 
