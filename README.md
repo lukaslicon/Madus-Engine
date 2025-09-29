@@ -3,13 +3,16 @@
 Madus-Engine is a EARLY WORK IN PROGRESS. **tiny C++ sandbox engine** built from scratch for learning and prototyping **anime-style games**.  
 It uses **GLFW**, **glad**, and **OpenGL 3.3 Core**.  
 
-Current demo: opens a 1920x1080 window with a 3D controlable Cube. Camera and WASD movement with a dash if you click Shift. (future setup)
+Current demo: opens a 1920x1080 window with a 3D controlable Cube. WASD movement with a dash if you click Shift. Isometric view and colliders are set up.(future setup)
 
 Playing around with light, shaders, rendering, meshes at the moment.
 
-![Example Progress Output](image3.png)
-![Example Progress Output](image2.png)
 ![Example Progress Output](image.png)
+<video controls width="320">
+  <source src="recording.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ---
 
 ## Features (so far)
