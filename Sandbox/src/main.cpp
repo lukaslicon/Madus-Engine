@@ -207,7 +207,7 @@ int main(){
         glActiveTexture(GL_TEXTURE0);
 
         // draw ground
-        Mat4 Mground = TRS({0,-.5,0}, AngleAxis(0,{0,1,0}), {1,1,1});
+        Mat4 Mground = TRS({0,-1,0}, AngleAxis(0,{0,1,0}), {1,1,1});
         Renderer_DrawMesh(plane, sh, Mground, ground);
 
         // test cubes

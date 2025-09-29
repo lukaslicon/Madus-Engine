@@ -7,6 +7,7 @@
 // Shaders
 static ShaderHandle GBasicShader = 0;
 static ShaderHandle GSkyShader = 0;
+static GLuint gDummyVAO = 0;
 
 // Shadows
 static unsigned gShadowTex = 0;
@@ -127,36 +128,46 @@ static const char* FS_SKY = R"(#version 330 core
 in vec2 vNDC;
 out vec4 FragColor;
 
-uniform mat4 uView;        // camera view (we'll use rotation part only)
-uniform mat4 uProj;        // camera proj (for focal lengths)
-uniform vec3 uSunDir;      // direction light travels
+uniform mat4 uView;
+uniform mat4 uProj;
+uniform vec3 uSunDir;        // normalized, same one you use for lighting/shadows
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
+uniform float uSunSizeDeg;   // try 1.5 first to verify visibility
+uniform float uSunIntensity; // try 7.0 first
 
-// Reconstruct world ray direction from NDC and camera matrices.
+// Robust: use inverse(projection) instead of fx/fy
 vec3 RayDirWorld(vec2 ndc){
-    // In perspective, dir_view = normalize( (x/fx, y/fy, 1) )
-    float fx = uProj[0][0];
-    float fy = uProj[1][1];
-    vec3 dirV = normalize(vec3(ndc.x / fx, ndc.y / fy, 1.0));
-    // Remove camera rotation (inverse is transpose for orthonormal rotation)
+    // reconstruct a point on the view frustum at z=1 in clip space
+    vec4 clip = vec4(ndc, 1.0, 1.0);
+    // go to view space
+    vec4 viewP = inverse(uProj) * clip;
+    vec3 dirV = normalize(viewP.xyz / viewP.w);
+    // remove camera rotation to world
     mat3 Rinv = transpose(mat3(uView));
     return normalize(Rinv * dirV);
 }
 
 void main(){
-    vec2 ndc = vNDC; // already in [-1,1]
+    vec2 ndc = vNDC; // interpolated from the full-screen triangle [-1..1]
     vec3 d = RayDirWorld(ndc);
 
-    // Vertical gradient (hemisphere ambient)
+    // Hemisphere gradient
     float t = d.y * 0.5 + 0.5;
     vec3 base = mix(uGroundColor, uSkyColor, t);
 
-    // Sun disk: direction is opposite of uSunDir (toward the sun)
-    float sd = max(dot(d, -normalize(uSunDir)), 0.0);
-    float sun = smoothstep(0.995, 1.0, sd); // size: adjust edge
-    vec3 col = base + sun * vec3(4.0);
+    // --- Sun disk ---
+    // If you still don't see it, try flipping this sign once:
+    // vec3 sunLook = normalize(+uSunDir); // (test flip)
+    vec3 sunLook = normalize(-uSunDir);     // light comes from the sun toward the scene
+    float sd = clamp(dot(d, sunLook), 0.0, 1.0);
 
+    float r  = radians(uSunSizeDeg);         // hard radius, in degrees
+    float rs = r * 1.5;                      // soft edge
+    float disk  = smoothstep(cos(rs), cos(r), sd);
+    float halo  = smoothstep(0.92, 1.0, sd) * 0.4;
+
+    vec3 col = base + (disk * uSunIntensity) + (halo * uSunIntensity * 0.35);
     FragColor = vec4(col, 1.0);
 })";
 
@@ -167,11 +178,15 @@ void Renderer_Init(void*){
     glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    glFrontFace(GL_CCW); 
+    glFrontFace(GL_CCW);
 
     GBasicShader = CreateShaderProgram(VS,FS);
-    GSkyShader   = CreateShaderProgram(VS_SKY, FS_SKY); 
+    GSkyShader   = CreateShaderProgram(VS_SKY, FS_SKY);
+
+    glGenVertexArrays(1, &gDummyVAO);
+    glBindVertexArray(gDummyVAO); // keep a VAO bound by default
 }
+
 void Renderer_Shutdown(){
     DestroyShaderProgram(GBasicShader); GBasicShader = 0;
     DestroyShaderProgram(GSkyShader);   GSkyShader   = 0; 
@@ -285,9 +300,17 @@ void Renderer_DrawSky(const Mat4& view, const Mat4& proj, const DirectionalLight
     glUniform3f(GetUniformLocation(GSkyShader,"uSkyColor"), 0.32f,0.42f,0.62f);
     glUniform3f(GetUniformLocation(GSkyShader,"uGroundColor"), 0.10f,0.09f,0.09f);
 
+    glUniform1f(GetUniformLocation(GSkyShader,"uSunSizeDeg"), 0.6f);   // bigger disk for debug
+    glUniform1f(GetUniformLocation(GSkyShader,"uSunIntensity"), 1.0f); // bright so it pops
+
+
+    // Full-screen triangle draw (ensure some VAO is bound in core profile)
+    extern GLuint gDummyVAO; // at top of file or keep it in same TU
+    glBindVertexArray(gDummyVAO);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     glEnable(GL_CULL_FACE);
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
 }
+
