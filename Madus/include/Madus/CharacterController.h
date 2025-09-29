@@ -1,4 +1,4 @@
-// Copyright Lukas Licon 2025, All Rights Reservered.
+// Copyright Lukas Licon 2025, All Rights Reserved.
 
 #pragma once
 
