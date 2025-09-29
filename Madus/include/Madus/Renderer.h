@@ -35,3 +35,6 @@ void Renderer_Shadow_DrawDepth(const GpuMesh& mesh, const Mat4& model);
 void Renderer_Shadow_End();
 unsigned Renderer_Shadow_GetTexture();
 Mat4     Renderer_Shadow_GetLightVP();
+
+void Renderer_DrawSky(const Mat4& view, const Mat4& proj, const DirectionalLight& sun);
+

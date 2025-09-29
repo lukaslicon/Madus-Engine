@@ -9,5 +9,5 @@ struct GpuMesh {
 };
 
 GpuMesh CreateBoxUnit();      // 1x1x1 centered at origin
-GpuMesh CreatePlane(float size=20.f);
+GpuMesh CreatePlane(float size = 20.f);
 void    DestroyMesh(GpuMesh& m);

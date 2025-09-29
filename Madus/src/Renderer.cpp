@@ -5,7 +5,8 @@
 #include <GLFW/glfw3.h>
 
 // Shaders
-static ShaderHandle GBasicShader=0;
+static ShaderHandle GBasicShader = 0;
+static ShaderHandle GSkyShader = 0;
 
 // Shadows
 static unsigned gShadowTex = 0;
@@ -23,7 +24,7 @@ static Mat4 MulM(const Mat4& A, const Mat4& B){
     return R;
 }
 
-// Depth only shaders
+// Depth shaders
 static const char* VS_DEPTH = R"(#version 330 core
 layout(location=0) in vec3 aPos;
 uniform mat4 uModel;
@@ -73,21 +74,23 @@ uniform mat4  uLightVP;
 float ShadowFactor(vec3 ws){
     vec4 ls = uLightVP * vec4(ws,1.0);
     vec3 p = ls.xyz / ls.w;
+
     // to [0,1]
     vec2 uv = p.xy * 0.5 + 0.5;
     float z  = p.z * 0.5 + 0.5;
 
-    // basic PCF 3x3
+    // --- 5x5 PCF ---
     float shadow = 0.0;
-    float bias = 0.0015;
+    float bias = 0.0015;                       // tweak 0.0008 .. 0.003
     vec2 texel = 1.0 / textureSize(uShadowMap, 0);
-    for(int y=-1;y<=1;++y){
-        for(int x=-1;x<=1;++x){
-            float d = texture(uShadowMap, uv + vec2(x,y)*texel).r;
+
+    for (int y = -2; y <= 2; ++y) {
+        for (int x = -2; x <= 2; ++x) {
+            float d = texture(uShadowMap, uv + vec2(x,y) * texel).r;
             shadow += (z - bias > d) ? 0.0 : 1.0;
         }
     }
-    return shadow / 9.0; // 0..1 (0=full shadow, 1=lit)
+    return shadow / 25.0; // 0..1 (0=full shadow, 1=lit)
 }
 
 void main(){
@@ -112,6 +115,50 @@ void main(){
     FragColor = vec4(color, 1.0);
 })";
 
+static const char* VS_SKY = R"(#version 330 core
+const vec2 verts[3] = vec2[3]( vec2(-1.0,-1.0), vec2(3.0,-1.0), vec2(-1.0,3.0) );
+out vec2 vNDC;
+void main(){
+    vNDC = verts[gl_VertexID];         // NDC in [-1,1] (will use to build ray dir)
+    gl_Position = vec4(verts[gl_VertexID], 0.0, 1.0);
+})";
+
+static const char* FS_SKY = R"(#version 330 core
+in vec2 vNDC;
+out vec4 FragColor;
+
+uniform mat4 uView;        // camera view (we'll use rotation part only)
+uniform mat4 uProj;        // camera proj (for focal lengths)
+uniform vec3 uSunDir;      // direction light travels
+uniform vec3 uSkyColor;
+uniform vec3 uGroundColor;
+
+// Reconstruct world ray direction from NDC and camera matrices.
+vec3 RayDirWorld(vec2 ndc){
+    // In perspective, dir_view = normalize( (x/fx, y/fy, 1) )
+    float fx = uProj[0][0];
+    float fy = uProj[1][1];
+    vec3 dirV = normalize(vec3(ndc.x / fx, ndc.y / fy, 1.0));
+    // Remove camera rotation (inverse is transpose for orthonormal rotation)
+    mat3 Rinv = transpose(mat3(uView));
+    return normalize(Rinv * dirV);
+}
+
+void main(){
+    vec2 ndc = vNDC; // already in [-1,1]
+    vec3 d = RayDirWorld(ndc);
+
+    // Vertical gradient (hemisphere ambient)
+    float t = d.y * 0.5 + 0.5;
+    vec3 base = mix(uGroundColor, uSkyColor, t);
+
+    // Sun disk: direction is opposite of uSunDir (toward the sun)
+    float sd = max(dot(d, -normalize(uSunDir)), 0.0);
+    float sun = smoothstep(0.995, 1.0, sd); // size: adjust edge
+    vec3 col = base + sun * vec3(4.0);
+
+    FragColor = vec4(col, 1.0);
+})";
 
 
 void Renderer_Init(void*){
@@ -123,9 +170,11 @@ void Renderer_Init(void*){
     glFrontFace(GL_CCW); 
 
     GBasicShader = CreateShaderProgram(VS,FS);
+    GSkyShader   = CreateShaderProgram(VS_SKY, FS_SKY); 
 }
 void Renderer_Shutdown(){
-    DestroyShaderProgram(GBasicShader); GBasicShader=0;
+    DestroyShaderProgram(GBasicShader); GBasicShader = 0;
+    DestroyShaderProgram(GSkyShader);   GSkyShader   = 0; 
 }
 void Renderer_Resize(int w,int h){
     glViewport(0,0,w,h);
@@ -140,12 +189,7 @@ void Renderer_Begin(const FrameParams& fp){
 void Renderer_DrawMesh(const GpuMesh& mesh, ShaderHandle sh, const Mat4& model, unsigned albedoTex){
     glUseProgram(sh);
     int locM = GetUniformLocation(sh,"uModel");
-    int locV = GetUniformLocation(sh,"uView");
-    int locP = GetUniformLocation(sh,"uProj");
     int locS = GetUniformLocation(sh,"uAlbedo");
-    int locDir = GetUniformLocation(sh,"uSunDir");
-    int locCol = GetUniformLocation(sh,"uSunColor");
-    int locInt = GetUniformLocation(sh,"uSunIntensity");
 
     // Fetch from a tiny global cache — for simplicity store them static
     static Mat4 sView=Identity(), sProj=Identity();
@@ -229,3 +273,21 @@ void Renderer_Shadow_End(){
 unsigned Renderer_Shadow_GetTexture(){ return gShadowTex; }
 Mat4 Renderer_Shadow_GetLightVP(){ return gLightVP; } // caller will upload (we’ll compute properly in Sandbox)
 
+void Renderer_DrawSky(const Mat4& view, const Mat4& proj, const DirectionalLight& sun){
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+
+    glUseProgram(GSkyShader);
+    glUniformMatrix4fv(GetUniformLocation(GSkyShader,"uView"),1,GL_FALSE,view.m);
+    glUniformMatrix4fv(GetUniformLocation(GSkyShader,"uProj"),1,GL_FALSE,proj.m);
+    glUniform3f(GetUniformLocation(GSkyShader,"uSunDir"), sun.dir[0], sun.dir[1], sun.dir[2]);
+    glUniform3f(GetUniformLocation(GSkyShader,"uSkyColor"), 0.32f,0.42f,0.62f);
+    glUniform3f(GetUniformLocation(GSkyShader,"uGroundColor"), 0.10f,0.09f,0.09f);
+
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    glEnable(GL_CULL_FACE);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+}
