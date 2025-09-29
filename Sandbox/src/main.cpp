@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm> // std::clamp
+#include <vector>
 
 #include "Madus/Math.h"
 #include "Madus/Camera.h"
@@ -14,16 +15,10 @@
 #include "Madus/Renderer.h"
 #include "Madus/CharacterController.h"
 
-// -----------------------------------------------
-// GL debug callback
-// -----------------------------------------------
 static void GLAPIENTRY glDbg(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar* msg, const void*) {
     std::cerr << "[GL] " << msg << "\n";
 }
 
-// -----------------------------------------------
-// Tiny Mat4 multiply helper (column-major)
-// -----------------------------------------------
 static Mat4 MulM(const Mat4& A, const Mat4& B){
     Mat4 R{};
     for(int c=0;c<4;++c)
@@ -41,6 +36,52 @@ static Vec3 LerpExp(const Vec3& from, const Vec3& to, float dt, float halfLifeSe
     return Add(from, Mul(Add(to, Mul(from, -1.f)), t));
 }
 
+struct AABB2 { float minx, minz, maxx, maxz; };
+
+static bool ResolveCircleAABB2(Vec3& pos, Vec3& vel, float radius, const AABB2& b)
+{
+    float qx = std::min(std::max(pos.x, b.minx), b.maxx);
+    float qz = std::min(std::max(pos.z, b.minz), b.maxz);
+    float dx = pos.x - qx;
+    float dz = pos.z - qz;
+    float d2 = dx*dx + dz*dz;
+
+    if (d2 > 0.0f) { 
+        float r = radius;
+        if (d2 < r*r) {
+            float d = std::sqrt(d2);
+            float nx = dx / d, nz = dz / d;           
+            float push = (r - d);
+            pos.x += nx * push; pos.z += nz * push;
+            float vn = vel.x*nx + vel.z*nz;
+            if (vn < 0.f) { vel.x -= vn*nx; vel.z -= vn*nz; }
+            return true;
+        }
+        return false;
+    } else {
+        float left   = pos.x - b.minx;
+        float right  = b.maxx - pos.x;
+        float down   = pos.z - b.minz;
+        float up     = b.maxz - pos.z;
+        float minX = std::min(left, right);
+        float minZ = std::min(down, up);
+        if (minX < minZ) {
+            float nx = (left < right) ? 1.f : -1.f;
+            float push = minX + radius;
+            pos.x += nx * push;
+            float vn = vel.x*nx;
+            if (vn < 0.f) vel.x -= vn*nx;
+        } else {
+            float nz = (down < up) ? 1.f : -1.f;
+            float push = minZ + radius;
+            pos.z += nz * push;
+            float vn = vel.z*nz;
+            if (vn < 0.f) vel.z -= vn*nz;
+        }
+        return true;
+    }
+}
+
 int main(){
     if(!glfwInit()){ std::cerr<<"GLFW init failed\n"; return -1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
@@ -50,8 +91,6 @@ int main(){
     if(!win){ glfwTerminate(); return -1; }
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
-
-    // capture mouse by default
     glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     if (glfwRawMouseMotionSupported()) glfwSetInputMode(win, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     bool gMouseCaptured = true;
@@ -107,6 +146,20 @@ int main(){
 
     double lastTime = glfwGetTime();
 
+    // --- World colliders (in meters) ---
+    std::vector<AABB2> world;
+
+    // Level bounds: a 20x20 playable square, walls 1m thick around it
+    const float halfW = 19.0f, halfD = 19.0f, th = 1.0f;
+    world.push_back({-halfW-th, -halfD-th, -halfW,   halfD+th}); // left wall
+    world.push_back({ halfW,    -halfD-th,  halfW+th, halfD+th}); // right wall
+    world.push_back({-halfW,    -halfD-th,  halfW,   -halfD});    // bottom wall
+    world.push_back({-halfW,     halfD,     halfW,    halfD+th}); // top wall
+
+    // A pillar near the center (1.2m square)
+    world.push_back({-0.6f, -0.6f, +0.6f, +0.6f});
+
+
     while(!glfwWindowShouldClose(win)){
         glfwPollEvents();
 
@@ -140,6 +193,10 @@ int main(){
             hero.Tick(in, dt, cam.Forward(), cam.Right());
         }
 
+        for (const AABB2& b : world) {
+            ResolveCircleAABB2(hero.Position, hero.Velocity, hero.CapsuleRadius, b);
+        }
+
         static float hudAccum = 0.f;
         hudAccum += dt;
         if (hudAccum > 0.10f) {
@@ -171,7 +228,7 @@ int main(){
         };
 
         Vec3 baseFwd   = ForwardFrom(baseYaw, basePitch);
-        Vec3 baseRight = Normalize(Cross(baseFwd, Vec3{0,1,0})); // camera right for offsets
+        Vec3 baseRight = Normalize(Cross(baseFwd, Vec3{0,1,0}));
         cam.Pos   = Add(hero.Position, Add(Mul(baseFwd, -camBack), Vec3{0, camUp, 0}));
         cam.Yaw   = baseYaw;   
         cam.Pitch = basePitch;
@@ -181,11 +238,9 @@ int main(){
         if (glfwGetKey(win, GLFW_KEY_UP)    == GLFW_PRESS) targetOffY += panSpeed * dt;
         if (glfwGetKey(win, GLFW_KEY_DOWN)  == GLFW_PRESS) targetOffY -= panSpeed * dt;
 
-        // Clamp
         targetOffX = std::clamp(targetOffX, -maxHoriz, +maxHoriz);
         targetOffY = std::clamp(targetOffY, -maxVert,  +maxVert);
 
-        // Spring back to center when keys not pressed
         auto Spring01 = [](float v, float dt, float halfLife){
             if (halfLife <= 0.f) return v;
             float k = 1.f - std::exp(-std::log(2.f) * dt / halfLife);
@@ -196,13 +251,10 @@ int main(){
         if (!anyH) targetOffX = Spring01(targetOffX, dt, springHalfLife);
         if (!anyV) targetOffY = Spring01(targetOffY, dt, springHalfLife);
 
-        //  Build target with distance offsets 
-        // World up for vertical pan; camera right for horizontal pan
         Vec3 target = Add(hero.Position, Vec3{0, eyeLift, 0});
         target = Add(target, Mul(baseRight, targetOffX));
         target = Add(target, Mul(Vec3{0,1,0}, targetOffY));
 
-        //  Frame params 
         FrameParams fp{};
         fp.View = LookAt(cam.Pos, target, Vec3{0,1,0});
         fp.Proj = cam.Proj((float)w/(float)h);
@@ -231,6 +283,8 @@ int main(){
             Renderer_Shadow_DrawDepth(box,   TRS(hero.Position, AngleAxis(0,{0,1,0}), {1,1,1}));
         }
         Renderer_Shadow_End();
+
+
 
         // Restore viewport after shadow pass
         glViewport(0,0,w,h);
@@ -278,12 +332,23 @@ int main(){
         glActiveTexture(GL_TEXTURE0);
 
         // draw ground
-        Mat4 Mground = TRS({0,-1,0}, AngleAxis(0,{0,1,0}), {1,1,1});
+        Mat4 Mground = TRS({0,0,0}, AngleAxis(0,{0,1,0}), {1,1,1});
         Renderer_DrawMesh(plane, sh, Mground, ground);
 
         // hero proxy
         Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {1.0f,1.5f,1.0f});
         Renderer_DrawMesh(box, sh, Mhero, white);
+
+        //collider visualization
+        for (const AABB2& b : world) {
+            float cx = 0.5f*(b.minx + b.maxx);
+            float cz = 0.5f*(b.minz + b.maxz);
+            float sx = (b.maxx - b.minx);
+            float sz = (b.maxz - b.minz);
+            // make them 2m tall so they're visible
+            Mat4 M = TRS(Vec3{cx, hero.GroundY + 1.0f, cz}, AngleAxis(0,{0,1,0}), Vec3{sx, 3.0f, sz});
+            Renderer_DrawMesh(box, sh, M, white);
+        }
 
         Renderer_End();
         glfwSwapBuffers(win);
