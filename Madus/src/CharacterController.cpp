@@ -6,8 +6,11 @@
 
 static inline Vec3 Flatten(const Vec3& v){ return Vec3{v.x, 0.f, v.z}; }
 static inline float Dot2D(const Vec3& a, const Vec3& b){ return a.x*b.x + a.z*b.z; }
-static inline float Len2D(const Vec3& v){float s = v.x * v.x + v.z * v.z; return (s > 0.f) ? std::sqrt(s) : 0.f;}
 static inline float Clamp(float x, float a, float b){ return std::max(a, std::min(b, x)); }
+static inline Vec3 ProjectAlongPlane(const Vec3& v, const Vec3& n){return Add(v, Mul(n, - (v.x*n.x + v.y*n.y + v.z*n.z)));}
+static inline float CosDeg(float d){ return std::cos(d * (float)MADUS_PI / 180.f); }
+inline float GetGroundY(const CharacterController& cc, float x, float z){ return cc.GroundHeight ? cc.GroundHeight(x,z) : cc.GroundY;}
+inline Vec3 GetGroundN(const CharacterController& cc, float x, float z){return cc.GroundNormal ? Normalize(cc.GroundNormal(x,z)) : Vec3{0,1,0};}
 
 
 
@@ -44,6 +47,12 @@ static void ApplyBrakingXZ(Vec3& vel, float decel, float dt, float stopEps)
     if (newSpeed <= stopEps) { vel.x = 0.f; vel.z = 0.f; }
 }
 
+static inline float Len2D(const Vec3& v){
+    float s = v.x * v.x + v.z * v.z;
+    return (s > 0.f) ? std::sqrt(s) : 0.f;
+}
+
+
 
 void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFwd, const Vec3& camRight)
 {
@@ -62,17 +71,26 @@ void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFw
     JumpBuf     = std::max(0.f, JumpBuf     - dt);
     DashBuf     = std::max(0.f, DashBuf     - dt);
 
+    float gy = GetGroundY(*this, Position.x, Position.z);
+    Vec3  gn = GetGroundN(*this, Position.x, Position.z);
+    float cosMax = CosDeg(MaxSlopeDeg);
+
+    bool walkableHere = (gn.y >= cosMax);
+
     float capsuleBottomY = Position.y - CapsuleHalfHeight;
-    Grounded = (capsuleBottomY <= GroundY + 0.0001f) && (Velocity.y <= 0.0f);
+    Grounded = (capsuleBottomY <= gy + GroundSnap) && (Velocity.y <= 0.f) && walkableHere;
 
     if (Grounded){
         OnGroundTime += dt; OffGroundTime = 0.f;
-        float desiredY = GroundY + CapsuleHalfHeight;
+        float desiredY = gy + CapsuleHalfHeight;
         if (Position.y != desiredY){ Position.y = desiredY; if (Velocity.y < 0.f) Velocity.y = 0.f; }
+        Vec3 v = Velocity;
+        v = ProjectAlongPlane(v, gn);
+        v.y = 0.f;
+        Velocity = v;
     } else {
         OffGroundTime += dt; OnGroundTime = 0.f;
     }
-
     if (DashTimer > 0.f){
         DashTimer -= dt;
         Velocity.y -= Gravity * dt * 0.25f; 
@@ -141,8 +159,22 @@ void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFw
     }
 
     Vec3 prevVel = Velocity;
-    Position = Add(Position, Mul(Velocity, dt));
+    Position = Add(Position, Mul(Velocity, dt));  
 
+    float horizSpeed = Len2D(Velocity);
+    if (horizSpeed > 0.01f) {
+        float newGy = GroundY;
+        Vec3  newGn = Vec3{0,1,0};
+        float desiredY = newGy + CapsuleHalfHeight;
+        float rise = desiredY - Position.y;
+        auto CosDeg = [](float d){ return std::cos(d * (float)MADUS_PI / 180.f); };
+        if (rise > 0.f && rise <= StepOffset && newGn.y >= CosDeg(MaxSlopeDeg)) {
+            Position.y = desiredY;
+            if (Velocity.y < 0.f) Velocity.y = 0.f; 
+            Grounded = true;
+            OffGroundTime = 0.f;
+        }
+    }
     float floorY = GroundY + CapsuleHalfHeight;
     if (Position.y < floorY){
         Position.y = floorY;
@@ -151,7 +183,7 @@ void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFw
         OffGroundTime = 0.f;
     }
 
-    float curSpeed = std::sqrt(Velocity.x*Velocity.x + Velocity.z*Velocity.z);
+    float curSpeed = Len2D(Velocity);
     AccelMag = (dt > 0.f) ? (curSpeed - LastSpeed) / dt : 0.f;
     LastSpeed = curSpeed;
 }

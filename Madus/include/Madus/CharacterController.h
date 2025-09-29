@@ -43,6 +43,12 @@ struct CharacterController {
     float CapsuleHalfHeight = 0.90f;
     float GroundY           = 0.0f; 
 
+    // Walking constraints
+    float StepOffset   = 0.40f;     
+    float MaxSlopeDeg  = 40.0f;      
+    float GroundSnap   = 0.02f;      
+
+
     EPlayerState State = EPlayerState::Idle;
     float OnGroundTime = 0.f;    
     float OffGroundTime = 0.f;   
@@ -60,4 +66,10 @@ struct CharacterController {
     float AccelMag  = 0.f;   
 
     void Tick(const InputState& in, float dt, const Vec3& camFwd, const Vec3& camRight);
+
+    using GroundHeightFn = float(*)(float x, float z);
+    using GroundNormalFn = Vec3 (*)(float x, float z);
+
+    GroundHeightFn GroundHeight = nullptr; // if null, returns GroundY
+    GroundNormalFn GroundNormal = nullptr; // if null, returns {0,1,0}
 };

@@ -184,7 +184,7 @@ void Renderer_Init(void*){
     GSkyShader   = CreateShaderProgram(VS_SKY, FS_SKY);
 
     glGenVertexArrays(1, &gDummyVAO);
-    glBindVertexArray(gDummyVAO); // keep a VAO bound by default
+    glBindVertexArray(gDummyVAO); 
 }
 
 void Renderer_Shutdown(){
@@ -198,7 +198,6 @@ void Renderer_Begin(const FrameParams& fp){
     glClearColor(fp.Clear[0], fp.Clear[1], fp.Clear[2], 1.0f);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glUseProgram(GBasicShader);
-    // view/proj are set per-object OR could be set once here — we’ll set per-object for simplicity
     (void)fp;
 }
 void Renderer_DrawMesh(const GpuMesh& mesh, ShaderHandle sh, const Mat4& model, unsigned albedoTex){
@@ -206,20 +205,12 @@ void Renderer_DrawMesh(const GpuMesh& mesh, ShaderHandle sh, const Mat4& model, 
     int locM = GetUniformLocation(sh,"uModel");
     int locS = GetUniformLocation(sh,"uAlbedo");
 
-    // Fetch from a tiny global cache — for simplicity store them static
     static Mat4 sView=Identity(), sProj=Identity();
     static DirectionalLight sSun{};
-    // We rely on last set via Renderer_Begin? Expose setters — simplified here:
-    // We hijack glGet uniforms? Too heavy. Instead, store in static during Begin:
-    // For now, we let caller set uView/uProj before each batch; see Sandbox code below.
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, albedoTex);
     glUniform1i(locS, 0);
-
-    // We need view/proj/sun each draw; we’ll set them via globals set by the Sandbox — to keep this file generic we expose a helper:
-    // (In practice, set them right before DrawMesh from the caller)
-    // No-op here; the caller will glUniformMatrix4fv for uView/uProj/dir/color/intensity right after calling this if needed.
 
     glUniformMatrix4fv(locM, 1, GL_FALSE, model.m);
     glBindVertexArray(mesh.vao);
@@ -256,7 +247,7 @@ void Renderer_Shadow_Init(int size){
 }
 
 void Renderer_Shadow_Begin(const ShadowMapInfo& sm){
-    gLightVP = MulM(sm.LightProj, sm.LightView); // store LightVP for main pass
+    gLightVP = MulM(sm.LightProj, sm.LightView); 
 
     glViewport(0,0,gShadowSize,gShadowSize);
     glBindFramebuffer(GL_FRAMEBUFFER, gShadowFBO);
@@ -286,7 +277,7 @@ void Renderer_Shadow_End(){
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 unsigned Renderer_Shadow_GetTexture(){ return gShadowTex; }
-Mat4 Renderer_Shadow_GetLightVP(){ return gLightVP; } // caller will upload (we’ll compute properly in Sandbox)
+Mat4 Renderer_Shadow_GetLightVP(){ return gLightVP; } 
 
 void Renderer_DrawSky(const Mat4& view, const Mat4& proj, const DirectionalLight& sun){
     glDisable(GL_DEPTH_TEST);
@@ -300,12 +291,12 @@ void Renderer_DrawSky(const Mat4& view, const Mat4& proj, const DirectionalLight
     glUniform3f(GetUniformLocation(GSkyShader,"uSkyColor"), 0.32f,0.42f,0.62f);
     glUniform3f(GetUniformLocation(GSkyShader,"uGroundColor"), 0.10f,0.09f,0.09f);
 
-    glUniform1f(GetUniformLocation(GSkyShader,"uSunSizeDeg"), 0.6f);   // bigger disk for debug
-    glUniform1f(GetUniformLocation(GSkyShader,"uSunIntensity"), 1.0f); // bright so it pops
+    glUniform1f(GetUniformLocation(GSkyShader,"uSunSizeDeg"), 0.6f);  
+    glUniform1f(GetUniformLocation(GSkyShader,"uSunIntensity"), 1.0f); 
 
 
-    // Full-screen triangle draw (ensure some VAO is bound in core profile)
-    extern GLuint gDummyVAO; // at top of file or keep it in same TU
+
+    extern GLuint gDummyVAO; 
     glBindVertexArray(gDummyVAO);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
