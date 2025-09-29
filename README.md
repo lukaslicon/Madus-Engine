@@ -9,10 +9,6 @@ Current demo: opens a 1920x1080 window with a 3D controlable Cube. WASD movement
 Playing around with light, shaders, rendering, meshes at the moment.
 
 ![Example Progress Output](isoimage1.png)
-<video controls width="320">
-  <source src="recording2.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
 ---
 
