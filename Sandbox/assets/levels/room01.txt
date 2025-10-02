@@ -1,0 +1,16 @@
+# Simple arena with a central pillar and corner blocks
+// perimeter walls (a square room ~20x20)
+-10 -10  10 -9
+-10   9  10 10
+-10 -10 -9  10
+  9 -10 10  10
+
+# central pillar
+-1.5 -1.5  1.5  1.5
+
+# two L-shape corners
+-8  -2  -6   6
+-8   6  -2   8
+
+ 2  -8   8  -6
+ 6  -8   8   2

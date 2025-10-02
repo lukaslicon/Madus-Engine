@@ -4,8 +4,11 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <cmath>
-#include <algorithm> // std::clamp
+#include <algorithm> // std::clamp, std::min/max
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 #include "Madus/Math.h"
 #include "Madus/Camera.h"
@@ -36,8 +39,59 @@ static Vec3 LerpExp(const Vec3& from, const Vec3& to, float dt, float halfLifeSe
     return Add(from, Mul(Add(to, Mul(from, -1.f)), t));
 }
 
+// ----------------------------
+// Simple 2D AABB on XZ plane
+// ----------------------------
 struct AABB2 { float minx, minz, maxx, maxz; };
 
+// ----------------------------
+// Level loader (text file)
+// Each non-empty line: minx minz maxx maxz
+// '#' or '//' start a comment
+// ----------------------------
+struct Level {
+    std::vector<AABB2> Colliders;
+
+    static bool IsCommentOrBlank(const std::string& s){
+        size_t i = s.find_first_not_of(" \t\r\n");
+        if (i == std::string::npos) return true;
+        if (s[i] == '#') return true;
+        if (i+1 < s.size() && s[i]=='/' && s[i+1]=='/') return true;
+        return false;
+    }
+
+    bool LoadTxt(const char* path){
+        std::ifstream f(path);
+        if (!f.is_open()){
+            std::printf("[Level] Failed to open '%s'\n", path);
+            return false;
+        }
+        Colliders.clear();
+        std::string line;
+        int lineno = 0, added = 0;
+        while (std::getline(f, line)){
+            ++lineno;
+            if (IsCommentOrBlank(line)) continue;
+            std::istringstream iss(line);
+            float minx, minz, maxx, maxz;
+            if (!(iss >> minx >> minz >> maxx >> maxz)){
+                std::printf("[Level] Parse error at %s:%d -> '%s'\n", path, lineno, line.c_str());
+                continue;
+            }
+            if (maxx < minx) std::swap(maxx, minx);
+            if (maxz < minz) std::swap(maxz, minz);
+            Colliders.push_back({minx, minz, maxx, maxz});
+            ++added;
+        }
+        std::printf("[Level] Loaded %d colliders from '%s'\n", added, path);
+        return (added > 0);
+    }
+};
+
+// ------------------------------------------------------
+// Circle (hero) vs AABB2 resolve on XZ, keeps on ground
+// (This stays identical to your old resolver)
+// ------------------------------------------------------
 static bool ResolveCircleAABB2(Vec3& pos, Vec3& vel, float radius, const AABB2& b)
 {
     float qx = std::min(std::max(pos.x, b.minx), b.maxx);
@@ -46,11 +100,11 @@ static bool ResolveCircleAABB2(Vec3& pos, Vec3& vel, float radius, const AABB2& 
     float dz = pos.z - qz;
     float d2 = dx*dx + dz*dz;
 
-    if (d2 > 0.0f) { 
+    if (d2 > 0.0f) {
         float r = radius;
         if (d2 < r*r) {
             float d = std::sqrt(d2);
-            float nx = dx / d, nz = dz / d;           
+            float nx = dx / d, nz = dz / d;
             float push = (r - d);
             pos.x += nx * push; pos.z += nz * push;
             float vn = vel.x*nx + vel.z*nz;
@@ -116,22 +170,22 @@ int main(){
 
     const float baseYawDeg   = 45.f;    // face down world diagonal
     const float basePitchDeg = -35.f;   // tilt downward
-    
+
     cam.FovY  = DegToRad(65.f);
     cam.Pos   = {0, 8, 12}; // gets snapped below anyway
 
     // Boom parameters (constant)
-    const float camBack   = 12.0f;  
-    const float camUp     = 8.0f;   
-    const float eyeLift   = 1.0f;  
+    const float camBack   = 12.0f;
+    const float camUp     = 8.0f;
+    const float eyeLift   = 1.0f;
 
-    const float maxHoriz = 2.0f;  
-    const float maxVert  = 1.5f;  
-    const float panSpeed = 3.0f; 
-    const float springHalfLife = 0.25f; 
+    const float maxHoriz = 2.0f;
+    const float maxVert  = 1.5f;
+    const float panSpeed = 3.0f;
+    const float springHalfLife = 0.25f;
 
-    float targetOffX = 0.f;  
-    float targetOffY = 0.f;  
+    float targetOffX = 0.f;
+    float targetOffY = 0.f;
 
     // Geometry & materials
     GpuMesh plane = CreatePlane(40.f);
@@ -146,19 +200,19 @@ int main(){
 
     double lastTime = glfwGetTime();
 
-    // --- World colliders (in meters) ---
-    std::vector<AABB2> world;
-
-    // Level bounds: a 20x20 playable square, walls 1m thick around it
-    const float halfW = 19.0f, halfD = 19.0f, th = 1.0f;
-    world.push_back({-halfW-th, -halfD-th, -halfW,   halfD+th}); // left wall
-    world.push_back({ halfW,    -halfD-th,  halfW+th, halfD+th}); // right wall
-    world.push_back({-halfW,    -halfD-th,  halfW,   -halfD});    // bottom wall
-    world.push_back({-halfW,     halfD,     halfW,    halfD+th}); // top wall
-
-    // A pillar near the center (1.2m square)
-    world.push_back({-0.6f, -0.6f, +0.6f, +0.6f});
-
+    // --------- Level: load from file; fallback to your old hardcoded layout ---------
+    Level level;
+    if (!level.LoadTxt("assets/levels/room01.txt")) {
+        std::printf("[Level] Using fallback layout\n");
+        // Level bounds: a 20x20 playable square, walls 1m thick around it
+        const float halfW = 19.0f, halfD = 19.0f, th = 1.0f;
+        level.Colliders.push_back({-halfW-th, -halfD-th, -halfW,   halfD+th}); // left wall
+        level.Colliders.push_back({ halfW,    -halfD-th,  halfW+th, halfD+th}); // right wall
+        level.Colliders.push_back({-halfW,    -halfD-th,  halfW,   -halfD});    // bottom wall
+        level.Colliders.push_back({-halfW,     halfD,     halfW,    halfD+th}); // top wall
+        // A pillar near the center (1.2m square)
+        level.Colliders.push_back({-0.6f, -0.6f, +0.6f, +0.6f});
+    }
 
     while(!glfwWindowShouldClose(win)){
         glfwPollEvents();
@@ -193,10 +247,12 @@ int main(){
             hero.Tick(in, dt, cam.Forward(), cam.Right());
         }
 
-        for (const AABB2& b : world) {
+        // Collide hero with level colliders on XZ
+        for (const AABB2& b : level.Colliders) {
             ResolveCircleAABB2(hero.Position, hero.Velocity, hero.CapsuleRadius, b);
         }
 
+        // HUD title (unchanged)
         static float hudAccum = 0.f;
         hudAccum += dt;
         if (hudAccum > 0.10f) {
@@ -229,17 +285,17 @@ int main(){
 
         Vec3 baseFwd   = ForwardFrom(baseYaw, basePitch);
         Vec3 baseRight = Normalize(Cross(baseFwd, Vec3{0,1,0}));
-        cam.Pos   = Add(hero.Position, Add(Mul(baseFwd, -camBack), Vec3{0, camUp, 0}));
-        cam.Yaw   = baseYaw;   
+        cam.Pos   = Add(hero.Position, Add(Mul(baseFwd, -12.0f), Vec3{0, 8.0f, 0}));
+        cam.Yaw   = baseYaw;
         cam.Pitch = basePitch;
 
-        if (glfwGetKey(win, GLFW_KEY_RIGHT) == GLFW_PRESS) targetOffX += panSpeed * dt;
-        if (glfwGetKey(win, GLFW_KEY_LEFT)  == GLFW_PRESS) targetOffX -= panSpeed * dt;
-        if (glfwGetKey(win, GLFW_KEY_UP)    == GLFW_PRESS) targetOffY += panSpeed * dt;
-        if (glfwGetKey(win, GLFW_KEY_DOWN)  == GLFW_PRESS) targetOffY -= panSpeed * dt;
+        if (glfwGetKey(win, GLFW_KEY_RIGHT) == GLFW_PRESS) targetOffX += 3.0f * dt;
+        if (glfwGetKey(win, GLFW_KEY_LEFT)  == GLFW_PRESS) targetOffX -= 3.0f * dt;
+        if (glfwGetKey(win, GLFW_KEY_UP)    == GLFW_PRESS) targetOffY += 3.0f * dt;
+        if (glfwGetKey(win, GLFW_KEY_DOWN)  == GLFW_PRESS) targetOffY -= 3.0f * dt;
 
-        targetOffX = std::clamp(targetOffX, -maxHoriz, +maxHoriz);
-        targetOffY = std::clamp(targetOffY, -maxVert,  +maxVert);
+        targetOffX = std::clamp(targetOffX, -2.0f, +2.0f);
+        targetOffY = std::clamp(targetOffY, -1.5f, +1.5f);
 
         auto Spring01 = [](float v, float dt, float halfLife){
             if (halfLife <= 0.f) return v;
@@ -248,10 +304,10 @@ int main(){
         };
         bool anyH = (glfwGetKey(win, GLFW_KEY_LEFT)==GLFW_PRESS) || (glfwGetKey(win, GLFW_KEY_RIGHT)==GLFW_PRESS);
         bool anyV = (glfwGetKey(win, GLFW_KEY_UP)==GLFW_PRESS)   || (glfwGetKey(win, GLFW_KEY_DOWN)==GLFW_PRESS);
-        if (!anyH) targetOffX = Spring01(targetOffX, dt, springHalfLife);
-        if (!anyV) targetOffY = Spring01(targetOffY, dt, springHalfLife);
+        if (!anyH) targetOffX = Spring01(targetOffX, dt, 0.25f);
+        if (!anyV) targetOffY = Spring01(targetOffY, dt, 0.25f);
 
-        Vec3 target = Add(hero.Position, Vec3{0, eyeLift, 0});
+        Vec3 target = Add(hero.Position, Vec3{0, 1.0f, 0});
         target = Add(target, Mul(baseRight, targetOffX));
         target = Add(target, Mul(Vec3{0,1,0}, targetOffY));
 
@@ -267,7 +323,7 @@ int main(){
         fp.Sun.dir[1] = sunDir.y;
         fp.Sun.dir[2] = sunDir.z;
 
-        //  SHADOW PASS 
+        // ------------- SHADOW PASS -------------
         Vec3 center = hero.Position; center.y = 0.0f;
         float lightDist = 30.0f;
         Vec3 lightPos = Add(center, Mul(sunDir, -lightDist));  // center - dir * dist
@@ -281,10 +337,17 @@ int main(){
         {
             Renderer_Shadow_DrawDepth(plane, TRS({0,0,0}, AngleAxis(0,{0,1,0}), {1,1,1}));
             Renderer_Shadow_DrawDepth(box,   TRS(hero.Position, AngleAxis(0,{0,1,0}), {1,1,1}));
+            // Level walls into shadow map
+            for (const AABB2& b : level.Colliders) {
+                float cx = 0.5f*(b.minx + b.maxx);
+                float cz = 0.5f*(b.minz + b.maxz);
+                float sx = (b.maxx - b.minx);
+                float sz = (b.maxz - b.minz);
+                Mat4 M = TRS(Vec3{cx, 1.0f, cz}, AngleAxis(0,{0,1,0}), Vec3{sx, 3.0f, sz});
+                Renderer_Shadow_DrawDepth(box, M);
+            }
         }
         Renderer_Shadow_End();
-
-
 
         // Restore viewport after shadow pass
         glViewport(0,0,w,h);
@@ -292,7 +355,7 @@ int main(){
         // -------------- MAIN PASS --------------
         Renderer_Begin(fp);
 
-        // render sky first
+        // sky
         Renderer_DrawSky(fp.View, fp.Proj, fp.Sun);
 
         glUseProgram(sh);
@@ -339,14 +402,14 @@ int main(){
         Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {1.0f,1.5f,1.0f});
         Renderer_DrawMesh(box, sh, Mhero, white);
 
-        //collider visualization
-        for (const AABB2& b : world) {
+        // collider visualization (from level.Colliders)
+        for (const AABB2& b : level.Colliders) {
             float cx = 0.5f*(b.minx + b.maxx);
             float cz = 0.5f*(b.minz + b.maxz);
             float sx = (b.maxx - b.minx);
             float sz = (b.maxz - b.minz);
-            // make them 2m tall so they're visible
-            Mat4 M = TRS(Vec3{cx, hero.GroundY + 1.0f, cz}, AngleAxis(0,{0,1,0}), Vec3{sx, 3.0f, sz});
+            // make them 3m tall so they're visible
+            Mat4 M = TRS(Vec3{cx, 1.0f, cz}, AngleAxis(0,{0,1,0}), Vec3{sx, 3.0f, sz});
             Renderer_DrawMesh(box, sh, M, white);
         }
 
