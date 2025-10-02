@@ -21,7 +21,7 @@
     void ClearFrameDeltas(){
         MouseDX = MouseDY = 0;
         Jump = Dash = false;
-        AbilityQ = AbilityE = AbilityR = false;
+        AbilityQ = AbilityE = AbilityR = Ability1 = Ability2 = Ability3 = Ability4 = false;
         AttackLMB = false;
     }
  };

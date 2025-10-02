@@ -53,10 +53,10 @@ void Input_Poll(InputState& o){
     o.AbilityQ = (glfwGetKey(GWin, GLFW_KEY_Q) == GLFW_PRESS);
     o.AbilityE = (glfwGetKey(GWin, GLFW_KEY_E) == GLFW_PRESS);
     o.AbilityR = (glfwGetKey(GWin, GLFW_KEY_R) == GLFW_PRESS);
-    o.Ability1 = (glfwGetMouseButton(GWin, GLFW_KEY_1) == GLFW_PRESS);
-    o.Ability2 = (glfwGetMouseButton(GWin, GLFW_KEY_2) == GLFW_PRESS);
-    o.Ability3 = (glfwGetMouseButton(GWin, GLFW_KEY_3) == GLFW_PRESS);
-    o.Ability4 = (glfwGetMouseButton(GWin, GLFW_KEY_4) == GLFW_PRESS);
+    o.Ability1 = (glfwGetKey(GWin, GLFW_KEY_1) == GLFW_PRESS);
+    o.Ability2 = (glfwGetKey(GWin, GLFW_KEY_2) == GLFW_PRESS);
+    o.Ability3 = (glfwGetKey(GWin, GLFW_KEY_3) == GLFW_PRESS);
+    o.Ability4 = (glfwGetKey(GWin, GLFW_KEY_4) == GLFW_PRESS);
 
     // right input (can decide later for like npc interaction)
     o.InputRMB = (glfwGetMouseButton(GWin, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
