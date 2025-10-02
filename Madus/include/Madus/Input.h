@@ -16,11 +16,10 @@
     bool  Ability4 = false;
     bool  AttackLMB = false; 
     bool  InputRMB = false;
-    bool  Jump = false;
     bool  Dash = false;
     void ClearFrameDeltas(){
         MouseDX = MouseDY = 0;
-        Jump = Dash = false;
+        Dash = false;
         AbilityQ = AbilityE = AbilityR = Ability1 = Ability2 = Ability3 = Ability4 = false;
         AttackLMB = false;
     }

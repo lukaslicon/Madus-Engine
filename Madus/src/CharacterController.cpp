@@ -52,11 +52,9 @@ static inline float Len2D(const Vec3& v){
     return (s > 0.f) ? std::sqrt(s) : 0.f;
 }
 
-
-
 void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFwd, const Vec3& camRight)
 {
-    if (in.Jump) JumpBuf = BufferWindow;
+    //if (in.Jump) JumpBuf = BufferWindow;
     if (in.Dash) DashBuf = BufferWindow;
 
     Vec3 f = camFwd; f.y = 0; if (Length(f) > 0.0001f) f = Normalize(f);
@@ -186,4 +184,22 @@ void CharacterController::Tick(const InputState& in, float dt, const Vec3& camFw
     float curSpeed = Len2D(Velocity);
     AccelMag = (dt > 0.f) ? (curSpeed - LastSpeed) / dt : 0.f;
     LastSpeed = curSpeed;
+
+    const float vx = Velocity.x;
+    const float vz = Velocity.z;
+    const float spd = std::sqrt(vx*vx + vz*vz);
+
+    if (spd > 0.15f) {
+        float targetYaw = std::atan2(-vz, vx);
+        float d = targetYaw - VisualYaw;
+        while (d >  MADUS_PI) d -= 2.0f*(float)MADUS_PI;
+        while (d < -MADUS_PI) d += 2.0f*(float)MADUS_PI;
+        const float turnRate = 12.0f; 
+        VisualYaw += d * std::clamp(dt * turnRate, 0.0f, 1.0f);
+    }
+    if (Grounded) {
+        BobT += spd * BobSpeedScale * dt;
+    } else {
+        BobT += spd * (0.25f * BobSpeedScale) * dt;
+    }
 }

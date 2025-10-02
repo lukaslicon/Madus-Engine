@@ -63,13 +63,19 @@ struct CharacterController {
 
     // For debug overlay
     float LastSpeed = 0.f;   
-    float AccelMag  = 0.f;   
+    float AccelMag  = 0.f; 
+    
+    float VisualYaw = 0.0f;    
+    float VisualYawVel = 0.0f;  
+    float BobT = 0.0f;         
+    float BobAmount = 0.02f;    
+    float BobSpeedScale = 4.0f;
 
     void Tick(const InputState& in, float dt, const Vec3& camFwd, const Vec3& camRight);
 
     using GroundHeightFn = float(*)(float x, float z);
     using GroundNormalFn = Vec3 (*)(float x, float z);
 
-    GroundHeightFn GroundHeight = nullptr; // if null, returns GroundY
-    GroundNormalFn GroundNormal = nullptr; // if null, returns {0,1,0}
+    GroundHeightFn GroundHeight = nullptr; 
+    GroundNormalFn GroundNormal = nullptr; 
 };

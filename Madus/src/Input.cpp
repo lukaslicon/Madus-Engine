@@ -42,9 +42,6 @@ void Input_Poll(InputState& o){
         o.MoveZ *= inv;
     }
 
-    //Jump
-    o.Jump = (glfwGetKey(GWin, GLFW_KEY_SPACE) == GLFW_PRESS);
-
     //Dash
     o.Dash = (glfwGetKey(GWin, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ||
              (glfwGetKey(GWin, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);

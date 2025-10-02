@@ -200,17 +200,15 @@ int main(){
 
     double lastTime = glfwGetTime();
 
-    // --------- Level: load from file; fallback to your old hardcoded layout ---------
+    // load from file with a fallback
     Level level;
     if (!level.LoadTxt("assets/levels/room01.txt")) {
         std::printf("[Level] Using fallback layout\n");
-        // Level bounds: a 20x20 playable square, walls 1m thick around it
         const float halfW = 19.0f, halfD = 19.0f, th = 1.0f;
         level.Colliders.push_back({-halfW-th, -halfD-th, -halfW,   halfD+th}); // left wall
         level.Colliders.push_back({ halfW,    -halfD-th,  halfW+th, halfD+th}); // right wall
         level.Colliders.push_back({-halfW,    -halfD-th,  halfW,   -halfD});    // bottom wall
         level.Colliders.push_back({-halfW,     halfD,     halfW,    halfD+th}); // top wall
-        // A pillar near the center (1.2m square)
         level.Colliders.push_back({-0.6f, -0.6f, +0.6f, +0.6f});
     }
 
@@ -261,7 +259,6 @@ int main(){
             switch (hero.State) {
                 case EPlayerState::Idle: stateStr = "Idle"; break;
                 case EPlayerState::Move: stateStr = "Move"; break;
-                case EPlayerState::Jump: stateStr = "Jump"; break;
                 case EPlayerState::Fall: stateStr = "Fall"; break;
                 case EPlayerState::Dash: stateStr = "Dash"; break;
             }
@@ -323,7 +320,7 @@ int main(){
         fp.Sun.dir[1] = sunDir.y;
         fp.Sun.dir[2] = sunDir.z;
 
-        // ------------- SHADOW PASS -------------
+        //  SHADOW PASS 
         Vec3 center = hero.Position; center.y = 0.0f;
         float lightDist = 30.0f;
         Vec3 lightPos = Add(center, Mul(sunDir, -lightDist));  // center - dir * dist
@@ -352,7 +349,7 @@ int main(){
         // Restore viewport after shadow pass
         glViewport(0,0,w,h);
 
-        // -------------- MAIN PASS --------------
+        //  MAIN PASS 
         Renderer_Begin(fp);
 
         // sky
@@ -399,8 +396,33 @@ int main(){
         Renderer_DrawMesh(plane, sh, Mground, ground);
 
         // hero proxy
-        Mat4 Mhero = TRS(hero.Position, AngleAxis(0,{0,1,0}), {1.0f,1.5f,1.0f});
+        Vec3 heroPosDraw = hero.Position;
+
+        // vertical bob (subtle)
+        float bobY = std::sin(hero.BobT) * hero.BobAmount;
+        heroPosDraw.y += bobY;
+        auto ForwardFromYawXZ = [](float yaw)->Vec3 {
+            return Normalize(Vec3{ std::cos(yaw), 0.0f, -std::sin(yaw) });
+        };
+        Vec3 fwdXZ = ForwardFromYawXZ(hero.VisualYaw);
+
+        // Main body (box)
+        Mat4 Mhero = TRS(heroPosDraw, AngleAxis(hero.VisualYaw, {0,1,0}), {1.0f, 1.5f, 1.0f});
         Renderer_DrawMesh(box, sh, Mhero, white);
+
+        // nose 
+        const float noseForwardOffset = 0.9f;
+        const float noseHeightOffset  = 0.75f;
+        const Vec3  noseScale         = {0.18f, 0.18f, 0.55f};
+
+        Vec3 nosePos = heroPosDraw;
+        nosePos.x += fwdXZ.x * noseForwardOffset;
+        nosePos.z += fwdXZ.z * noseForwardOffset;
+        nosePos.y = hero.GroundY + noseHeightOffset + bobY; 
+
+        Mat4 Mnose = TRS(nosePos, AngleAxis(hero.VisualYaw, {0,1,0}), noseScale);
+        Renderer_DrawMesh(box, sh, Mnose, white);
+
 
         // collider visualization (from level.Colliders)
         for (const AABB2& b : level.Colliders) {
