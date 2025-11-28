@@ -1,6 +1,6 @@
 # Madus-Engine
 
-Madus-Engine is a EARLY WORK IN PROGRESS. **tiny C++ sandbox engine** built from scratch for learning and prototyping games. 
+Madus-Engine is a EARLY WORK IN PROGRESS. (Going slow, not current main project) **tiny C++ sandbox engine** built from scratch for learning and prototyping games. 
 
 It uses **GLFW**, **glad**, and **OpenGL 3.3 Core**.  
 
